@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking Smartcane</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; transition: background-color 0.5s; }
+        #map { width: 100%; height: 100vh; }
+        /* Warna layar saat darurat (Merah) */
+        .bg-darurat { background-color: #ffcccc !important; }
+        #pesan-darurat { 
+            display: none; background: red; color: white; text-align: center; 
+            padding: 15px; font-size: 24px; font-weight: bold; 
+            position: absolute; top: 0; width: 100%; z-index: 1000;
+        }
+
+        /* --- REVISI: Animasi Kelap-Kelip Pin --- */
+        @keyframes kelapKelip {
+            0% { opacity: 1; }
+            50% { opacity: 0; } /* Cukup hilangkan dan munculkan opacity-nya saja */
+            100% { opacity: 1; }
+        }
+        .marker-kedip {
+            animation: kelapKelip 0.5s infinite !important;
+            filter: hue-rotate(150deg) saturate(3); /* Mengubah pin jadi warna merah/orange saat berkedip */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="pesan-darurat">🚨 PERINGATAN! TOMBOL SOS DITEKAN! 🚨</div>
+    
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. GANTI DENGAN CONFIG FIREBASE MILIKMU!
+        // ==========================================
+        const firebaseConfig = {
+            databaseURL: "https://smartcane-kevin-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+        // Menyalakan Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // ==========================================
+        // 2. MENGATUR PETA
+        // ==========================================
+        const map = L.map('map').setView([-6.9828, 110.4306], 15); // Titik awal di Semarang
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let marker = L.marker([-6.9828, 110.4306]).addTo(map);
+
+        // ==========================================
+        // 3. MENGAMBIL DATA DARI DATABASE
+        // ==========================================
+        db.ref('/Tunanetra').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // Geser Marker ke Koordinat Baru
+                if (data.Latitude !== 0 && data.Longitude !== 0) {
+                    const posisiBaru = new L.LatLng(data.Latitude, data.Longitude);
+                    marker.setLatLng(posisiBaru);
+                    map.panTo(posisiBaru);
+                }
+
+                // Cek Status Tombol SOS
+                if (data.SOS === true) {
+                    document.body.classList.add("bg-darurat");
+                    document.getElementById("pesan-darurat").style.display = "block";
+                    
+                    // Nyalakan efek kedip di ikon pin
+                    if (marker._icon) {
+                        marker._icon.classList.add("marker-kedip");
+                    }
+                } else {
+                    document.body.classList.remove("bg-darurat");
+                    document.getElementById("pesan-darurat").style.display = "none";
+                    
+                    // Matikan efek kedip di ikon pin
+                    if (marker._icon) {
+                        marker._icon.classList.remove("marker-kedip");
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
