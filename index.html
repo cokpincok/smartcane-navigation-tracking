@@ -8,23 +8,38 @@
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; transition: background-color 0.5s; }
         #map { width: 100%; height: 100vh; }
-        /* Warna layar saat darurat (Merah) */
         .bg-darurat { background-color: #ffcccc !important; }
+        
         #pesan-darurat { 
             display: none; background: red; color: white; text-align: center; 
             padding: 15px; font-size: 24px; font-weight: bold; 
             position: absolute; top: 0; width: 100%; z-index: 1000;
         }
 
-        /* --- REVISI: Animasi Kelap-Kelip Pin --- */
+        /* --- DESAIN KARTU STATISTIK SOS --- */
+        #kartu-statistik {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            background: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            border-left: 5px solid red;
+        }
+
         @keyframes kelapKelip {
             0% { opacity: 1; }
-            50% { opacity: 0; } /* Cukup hilangkan dan munculkan opacity-nya saja */
+            50% { opacity: 0; } 
             100% { opacity: 1; }
         }
         .marker-kedip {
             animation: kelapKelip 0.5s infinite !important;
-            filter: hue-rotate(150deg) saturate(3); /* Mengubah pin jadi warna merah/orange saat berkedip */
+            filter: hue-rotate(150deg) saturate(3); 
         }
     </style>
 </head>
@@ -32,6 +47,8 @@
 
     <div id="pesan-darurat">🚨 PERINGATAN! TOMBOL SOS DITEKAN! 🚨</div>
     
+    <div id="kartu-statistik">🚨 Total SOS Ditekan: <span id="angka-sos" style="color: red; font-size: 20px;">0</span> kali</div>
+
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -40,53 +57,69 @@
 
     <script>
         // ==========================================
-        // 1. GANTI DENGAN CONFIG FIREBASE MILIKMU!
+        // 1. CONFIG FIREBASE KEVIN
         // ==========================================
         const firebaseConfig = {
             databaseURL: "https://smartcane-kevin-default-rtdb.asia-southeast1.firebasedatabase.app/"
         };
-        // Menyalakan Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
         // ==========================================
-        // 2. MENGATUR PETA
+        // 2. MENGATUR PETA & SPIDOL GARIS
         // ==========================================
-        const map = L.map('map').setView([-6.9828, 110.4306], 15); // Titik awal di Semarang
+        const map = L.map('map').setView([-6.9828, 110.4306], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         let marker = L.marker([-6.9828, 110.4306]).addTo(map);
 
+        let garisRute = L.polyline([], {color: '#ff5e00', weight: 5, opacity: 0.8}).addTo(map);
+
         // ==========================================
-        // 3. MENGAMBIL DATA DARI DATABASE
+        // 3. MENGAMBIL DATA UTAMA & STATISTIK SOS
         // ==========================================
         db.ref('/Tunanetra').on('value', (snapshot) => {
             const data = snapshot.val();
             if (data) {
-                // Geser Marker ke Koordinat Baru
+                // Geser Pin ke lokasi saat ini
                 if (data.Latitude !== 0 && data.Longitude !== 0) {
                     const posisiBaru = new L.LatLng(data.Latitude, data.Longitude);
                     marker.setLatLng(posisiBaru);
                     map.panTo(posisiBaru);
                 }
 
-                // Cek Status Tombol SOS
+                // --- UPDATE ANGKA STATISTIK DI WEB ---
+                if (data.JumlahSOS !== undefined) {
+                    document.getElementById("angka-sos").innerText = data.JumlahSOS;
+                }
+
+                // Cek Status Darurat
                 if (data.SOS === true) {
                     document.body.classList.add("bg-darurat");
                     document.getElementById("pesan-darurat").style.display = "block";
-                    
-                    // Nyalakan efek kedip di ikon pin
-                    if (marker._icon) {
-                        marker._icon.classList.add("marker-kedip");
-                    }
+                    if (marker._icon) marker._icon.classList.add("marker-kedip");
                 } else {
                     document.body.classList.remove("bg-darurat");
                     document.getElementById("pesan-darurat").style.display = "none";
-                    
-                    // Matikan efek kedip di ikon pin
-                    if (marker._icon) {
-                        marker._icon.classList.remove("marker-kedip");
+                    if (marker._icon) marker._icon.classList.remove("marker-kedip");
+                }
+            }
+        });
+
+        // ==========================================
+        // 4. MENGAMBIL DATA RIWAYAT RUTE
+        // ==========================================
+        db.ref('/Tunanetra/RiwayatRute').on('value', (snapshot) => {
+            const dataRute = snapshot.val();
+            let titikTitikKordinat = []; 
+
+            if (dataRute) {
+                for (let key in dataRute) {
+                    let titik = dataRute[key];
+                    if (titik.lat && titik.lng) {
+                        titikTitikKordinat.push([titik.lat, titik.lng]);
                     }
                 }
+                garisRute.setLatLngs(titikTitikKordinat);
             }
         });
     </script>
